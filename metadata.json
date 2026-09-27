@@ -1,0 +1,6 @@
+{
+  "name": "Futebol de Moedas PC",
+  "description": "Jogo de futebol de moedas para PC com Modo Carreira Manager para gerenciar clubes, contratar craques no mercado e recrutar moedas raras com olheiros, além do clássico 3 Moedas e partidas 1v1.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
