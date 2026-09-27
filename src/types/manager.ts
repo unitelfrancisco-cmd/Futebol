@@ -32,6 +32,9 @@ export interface PlayerCoin {
     goals: number;
     assists: number;
   };
+  ovrHistory?: { matchday: number; ovr: number }[];
+  injuryMatchdaysRemaining?: number; // 0 or undefined = healthy, >0 = injured
+  hasTemporaryOvrBonus?: boolean; // +1 OVR bonus for next match
   colors: {
     outer: string;
     inner: string;
@@ -133,7 +136,7 @@ export const SCOUT_MISSIONS: ScoutOption[] = [
   },
 ];
 
-export type ManagerViewTab = 'DASHBOARD' | 'SQUAD' | 'TRAINING' | 'TRANSFERS' | 'SCOUT' | 'LEAGUE' | 'MATCH_PREVIEW';
+export type ManagerViewTab = 'DASHBOARD' | 'SQUAD' | 'TRAINING' | 'TRANSFERS' | 'SCOUT' | 'LEAGUE' | 'HISTORY' | 'MATCH_PREVIEW';
 
 export type HighlightType =
   | 'ATTACK_1V1'

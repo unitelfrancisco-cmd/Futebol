@@ -1,5 +1,6 @@
 import React from 'react';
 import { MatchStats, GameMode } from '../types/game';
+import { PlayerCoin } from '../types/manager';
 import { RotateCcw, Trophy, Target, ShieldAlert, Award, Briefcase, Coins } from 'lucide-react';
 
 interface MatchEndModalProps {
@@ -16,6 +17,7 @@ interface MatchEndModalProps {
     pointsGained: number;
     onReturnToHub: () => void;
   };
+  manOfTheMatch?: PlayerCoin | null;
 }
 
 export const MatchEndModal: React.FC<MatchEndModalProps> = ({
@@ -25,6 +27,7 @@ export const MatchEndModal: React.FC<MatchEndModalProps> = ({
   stats,
   onPlayAgain,
   managerReward,
+  manOfTheMatch,
 }) => {
   if (!isOpen) return null;
 
@@ -108,6 +111,41 @@ export const MatchEndModal: React.FC<MatchEndModalProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Man of the Match Card */}
+        {manOfTheMatch && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 via-neutral-950 to-purple-950/60 border border-amber-500/50 shadow-xl flex items-center gap-4 text-left relative overflow-hidden">
+            <div className="absolute top-0 right-0 px-2.5 py-0.5 bg-amber-500 text-neutral-950 text-[9px] font-extrabold uppercase tracking-wider rounded-bl-lg shadow">
+              ⭐ Craque da Partida
+            </div>
+            <div
+              className="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold border-2 shadow-lg shrink-0"
+              style={{
+                backgroundColor: manOfTheMatch.colors.inner,
+                borderColor: manOfTheMatch.colors.outer,
+                color: manOfTheMatch.colors.border,
+              }}
+            >
+              #{manOfTheMatch.number}
+            </div>
+            <div className="space-y-1 min-w-0 flex-1 pr-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">
+                  Jogador da Partida (MOTM)
+                </span>
+                <span className="text-xs font-mono font-bold text-amber-400">
+                  OVR {manOfTheMatch.overall} <span className="text-emerald-400 font-bold">(+1 Próx. Jogo)</span>
+                </span>
+              </div>
+              <h4 className="text-sm font-bold text-white truncate">
+                {manOfTheMatch.name} <span className="text-xs font-normal text-neutral-400">({manOfTheMatch.position} · {manOfTheMatch.rarity})</span>
+              </h4>
+              <p className="text-[11px] text-neutral-300 leading-snug">
+                Excelente atuação! Ganhou bônus temporário de +1 OVR para a próxima rodada.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Manager Financial & Points Reward Breakdown */}
         {managerReward && (

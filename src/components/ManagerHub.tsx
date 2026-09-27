@@ -8,6 +8,22 @@ import {
   SCOUT_MISSIONS,
   ScoutOption,
 } from '../types/manager';
+import { NewsFeedWidget } from './NewsFeedWidget';
+import { AdvancedStatsWidget } from './AdvancedStatsWidget';
+import { SeasonHistoryTab } from './SeasonHistoryTab';
+import { SaveLoadWidget } from './SaveLoadWidget';
+import { TrainingTipsWidget } from './TrainingTipsWidget';
+import { TransferNotificationBanner } from './TransferNotificationBanner';
+import { InstallDesktopAppModal } from './InstallDesktopAppModal';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 import {
   Trophy,
   Users,
@@ -38,6 +54,8 @@ import {
   Star,
   MapPin,
   Building2,
+  BarChart2,
+  Download,
 } from 'lucide-react';
 import { sounds } from '../services/soundEngine';
 
@@ -58,6 +76,7 @@ interface ManagerHubProps {
   onBackToCasual: () => void;
   onOpenCreateTeam: () => void;
   onOpenTutorial: () => void;
+  onImportSave?: (saveData: { club: ManagerClub; squad: PlayerCoin[]; opponents: OpponentClub[]; market: PlayerCoin[] }) => void;
 }
 
 export const ManagerHub: React.FC<ManagerHubProps> = ({
@@ -77,11 +96,13 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
   onBackToCasual,
   onOpenCreateTeam,
   onOpenTutorial,
+  onImportSave,
 }) => {
   const [activeTab, setActiveTab] = useState<ManagerViewTab>('DASHBOARD');
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerCoin | null>(squad[0] || null);
   const [scoutingFeedback, setScoutingFeedback] = useState<PlayerCoin | null>(null);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'SUCCESS' | 'ERROR' | 'INFO' } | null>(null);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   const showToast = (text: string, type: 'SUCCESS' | 'ERROR' | 'INFO' = 'INFO') => {
     setToastMessage({ text, type });
@@ -235,6 +256,15 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
           </button>
 
           <button
+            onClick={() => setIsInstallModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white border border-neutral-700 font-semibold text-xs transition-colors cursor-pointer"
+            title="Instalar como aplicativo no PC"
+          >
+            <Download className="w-3.5 h-3.5 text-amber-400" />
+            <span>Instalar no PC</span>
+          </button>
+
+          <button
             onClick={onOpenTutorial}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-semibold text-xs transition-colors cursor-pointer"
             title="Aprenda as regras e ganhe seu elenco de ouro"
@@ -320,6 +350,18 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
             <Trophy className="w-3.5 h-3.5 text-yellow-400" />
             <span>Tabela da Liga</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('HISTORY')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer flex items-center gap-2 ${
+              activeTab === 'HISTORY'
+                ? 'bg-neutral-800 text-white border border-neutral-700'
+                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+            }`}
+          >
+            <BarChart2 className="w-3.5 h-3.5 text-purple-400" />
+            <span>Histórico da Temporada</span>
+          </button>
         </div>
 
         <button
@@ -337,6 +379,14 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left 2 Cols: Next Match Card & Recent News */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Transfer Notification Banner for Rare Star Players */}
+            <TransferNotificationBanner
+              market={market}
+              club={club}
+              onNavigateTransfers={() => setActiveTab('TRANSFERS')}
+              onSignPlayer={onHirePlayer}
+            />
+
             {/* Academy & Tutorial Recruitment Banner */}
             <div className="bg-gradient-to-r from-emerald-950/60 via-neutral-900 to-amber-950/40 border border-emerald-500/40 rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -478,6 +528,9 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* Advanced Stats & Recharts Pie Charts */}
+            <AdvancedStatsWidget club={club} />
           </div>
 
           {/* Right Col: League Table Snapshot & Squad Overview */}
@@ -563,6 +616,22 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
                 ))}
               </div>
             </div>
+
+            {/* Training Tips & Tactical Advice Widget */}
+            <TrainingTipsWidget club={club} onNavigateSquad={() => setActiveTab('SQUAD')} />
+
+            {/* News Feed Widget */}
+            <NewsFeedWidget />
+
+            {/* Save / Load JSON Widget */}
+            <SaveLoadWidget
+              club={club}
+              squad={squad}
+              opponents={opponents}
+              market={market}
+              onImportSave={onImportSave || (() => {})}
+              showToast={showToast}
+            />
           </div>
         </div>
       )}
@@ -615,11 +684,17 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (player.injuryMatchdaysRemaining && player.injuryMatchdaysRemaining > 0) {
+                            showToast(`Não é possível escalar ${player.name} enquanto estiver lesionado!`, 'ERROR');
+                            return;
+                          }
                           onToggleStarter(player.id);
                         }}
                         title={player.isStarter ? 'Titular (clique para virar reserva)' : 'Reserva (clique para virar titular)'}
                         className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs transition-colors cursor-pointer ${
-                          player.isStarter
+                          player.injuryMatchdaysRemaining && player.injuryMatchdaysRemaining > 0
+                            ? 'bg-rose-950 text-rose-400 border border-rose-800 opacity-50 cursor-not-allowed'
+                            : player.isStarter
                             ? 'bg-amber-400 text-neutral-950'
                             : 'bg-neutral-800 text-neutral-400 hover:text-white'
                         }`}
@@ -636,6 +711,16 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
                           {player.isStarter && (
                             <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
                               Titular
+                            </span>
+                          )}
+                          {player.injuryMatchdaysRemaining && player.injuryMatchdaysRemaining > 0 && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
+                              ⚠️ Lesionado ({player.injuryMatchdaysRemaining} {player.injuryMatchdaysRemaining === 1 ? 'rodada' : 'rodadas'})
+                            </span>
+                          )}
+                          {player.hasTemporaryOvrBonus && (
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-purple-300 bg-purple-500/20 px-1.5 py-0.5 rounded border border-purple-500/30">
+                              ⭐ +1 OVR (MOTM)
                             </span>
                           )}
                         </div>
@@ -768,6 +853,53 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
                   <span>Valor de Mercado:</span>
                   <span className="font-bold text-amber-400 font-mono">R$ {selectedPlayer.marketValue}</span>
                 </div>
+
+                {/* OVR Evolution Chart */}
+                <div className="mt-4 pt-4 border-t border-neutral-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                      <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
+                      Evolução do OVR por Rodada
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      OVR Atual: {selectedPlayer.overall}
+                    </span>
+                  </div>
+                  <div className="w-full h-40">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={
+                          selectedPlayer.ovrHistory && selectedPlayer.ovrHistory.length > 0
+                            ? selectedPlayer.ovrHistory.map(h => ({ matchday: `R${h.matchday}`, ovr: h.ovr }))
+                            : Array.from({ length: Math.max(1, club.matchday) }, (_, i) => {
+                                const md = i + 1;
+                                const base = Math.max(50, selectedPlayer.overall - Math.max(0, club.matchday - md));
+                                return { matchday: `R${md}`, ovr: base };
+                              })
+                        }
+                        margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
+                        <XAxis dataKey="matchday" stroke="#737373" fontSize={10} />
+                        <YAxis stroke="#737373" fontSize={10} domain={['dataMin - 2', 'dataMax + 2']} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#0A0A0A', borderColor: '#262626', borderRadius: '8px', fontSize: '11px' }}
+                          itemStyle={{ color: '#FAFAFA' }}
+                          formatter={(val: any) => [`${val}`, 'OVR']}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="ovr"
+                          name="OVR"
+                          stroke="#F59E0B"
+                          strokeWidth={2.5}
+                          dot={{ fill: '#F59E0B', r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
             ) : (
               <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 text-center text-neutral-500">
@@ -796,7 +928,7 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
               return (
                 <div
                   key={player.id}
-                  className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between hover:border-neutral-700 transition-all"
+                  className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 shadow-xl flex flex-col justify-between hover:border-neutral-700 transition-all animate-fade-in-scale"
                 >
                   <div>
                     <div className="flex items-start justify-between mb-3">
@@ -1012,6 +1144,9 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
         </div>
       )}
 
+      {/* TAB: SEASON HISTORY */}
+      {activeTab === 'HISTORY' && <SeasonHistoryTab club={club} squad={squad} />}
+
       {/* In-app Toast Feedback Banner */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 max-w-md animate-in fade-in slide-in-from-bottom-3 duration-200">
@@ -1034,6 +1169,9 @@ export const ManagerHub: React.FC<ManagerHubProps> = ({
           </div>
         </div>
       )}
+
+      {/* Install Desktop App Modal */}
+      <InstallDesktopAppModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} />
     </div>
   );
 };

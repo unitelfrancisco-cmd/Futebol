@@ -323,6 +323,7 @@ export default function App() {
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState<boolean>(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
   const [winner, setWinner] = useState<'PLAYER' | 'OPPONENT' | 'DRAW'>('DRAW');
+  const [manOfTheMatch, setManOfTheMatch] = useState<PlayerCoin | null>(null);
 
   // CPU move timer ref
   const cpuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -437,6 +438,53 @@ export default function App() {
     const pts = isPlayerWin ? 3 : isDraw ? 1 : 0;
     const newBudget = Math.max(0, managerClub.budget + netRevenue);
 
+    const newLogs: any[] = [];
+    const addLog = (title: string, type: any) => {
+      newLogs.push({
+        id: generateLogId(),
+        dateText: `Rodada ${managerClub.matchday}`,
+        title,
+        type,
+      });
+    };
+
+    // Process injuries and recovery
+    setManagerSquad((prevSquad) => {
+      let updated = prevSquad.map((p) => {
+        if (p.injuryMatchdaysRemaining && p.injuryMatchdaysRemaining > 0) {
+          const rem = p.injuryMatchdaysRemaining - 1;
+          if (rem <= 0) {
+            addLog(`Recuperação: ${p.name} recuperou-se da lesão e já pode voltar a campo!`, 'SCOUT');
+            return { ...p, injuryMatchdaysRemaining: undefined };
+          }
+          return { ...p, injuryMatchdaysRemaining: rem };
+        }
+        return p;
+      });
+
+      const healthy = updated.filter((p) => !p.injuryMatchdaysRemaining);
+      if (healthy.length > 0 && Math.random() < 0.22) {
+        const victim = healthy[Math.floor(Math.random() * healthy.length)];
+        const duration = 2;
+        addLog(`Departamento Médico: ${victim.name} sentiu dores musculares e desfalcará o time por ${duration} rodadas!`, 'MATCH');
+        updated = updated.map((p) => (p.id === victim.id ? { ...p, injuryMatchdaysRemaining: duration, isStarter: false } : p));
+      }
+
+      // Ensure 4 starters
+      const currentStarters = updated.filter((p) => p.isStarter);
+      if (currentStarters.length < 4) {
+        const subs = updated.filter((p) => !p.isStarter && !p.injuryMatchdaysRemaining);
+        for (const sub of subs) {
+          if (updated.filter((p) => p.isStarter).length < 4) {
+            const target = updated.find((p) => p.id === sub.id);
+            if (target) target.isStarter = true;
+          }
+        }
+      }
+
+      return updated;
+    });
+
     setManagerLastReward({
       income: matchIncome,
       payroll: matchPayroll,
@@ -483,6 +531,7 @@ export default function App() {
             title: `${prev.name} ${simStats.goalsP1} × ${simStats.goalsP2} ${currentOpponent.name} (${netRevenue >= 0 ? '+' : ''}R$ ${netRevenue})`,
             type: 'MATCH',
           },
+          ...newLogs,
           ...prev.historyLogs,
         ],
       };
@@ -762,6 +811,7 @@ export default function App() {
         pointsGained: pts,
         onReturnToHub: () => {
           setIsMatchEndOpen(false);
+          setManOfTheMatch(null);
           setManagerSubView('HUB');
           setMatchTime(180);
           setStats({
@@ -776,6 +826,79 @@ export default function App() {
           });
           resetBoard('MANAGER_CAREER');
         },
+      });
+
+      const newLogs: any[] = [];
+      const addLog = (title: string, type: any) => {
+        newLogs.push({
+          id: generateLogId(),
+          dateText: `Rodada ${managerClub.matchday}`,
+          title,
+          type,
+        });
+      };
+
+      setManagerSquad((prevSquad) => {
+        let updated = prevSquad.map((p) => {
+          let ovr = p.overall;
+          if (p.hasTemporaryOvrBonus) {
+            ovr = Math.max(50, ovr - 1);
+          }
+          let rem = p.injuryMatchdaysRemaining;
+          if (rem && rem > 0) {
+            const nextRem = rem - 1;
+            if (nextRem <= 0) {
+              addLog(`Recuperação: ${p.name} recuperou-se da lesão e já pode voltar a campo!`, 'SCOUT');
+              return { ...p, overall: ovr, injuryMatchdaysRemaining: undefined, hasTemporaryOvrBonus: false };
+            }
+            return { ...p, overall: ovr, injuryMatchdaysRemaining: nextRem, hasTemporaryOvrBonus: false };
+          }
+          return { ...p, overall: ovr, hasTemporaryOvrBonus: false };
+        });
+
+        const healthy = updated.filter((p) => !p.injuryMatchdaysRemaining);
+        if (healthy.length > 0 && Math.random() < 0.22) {
+          const victim = healthy[Math.floor(Math.random() * healthy.length)];
+          const duration = 2;
+          addLog(`Departamento Médico: ${victim.name} sentiu dores musculares e desfalcará o time por ${duration} rodadas!`, 'MATCH');
+          updated = updated.map((p) => (p.id === victim.id ? { ...p, injuryMatchdaysRemaining: duration, isStarter: false } : p));
+        }
+
+        const currentStarters = updated.filter((p) => p.isStarter);
+        if (currentStarters.length < 4) {
+          const subs = updated.filter((p) => !p.isStarter && !p.injuryMatchdaysRemaining);
+          for (const sub of subs) {
+            if (updated.filter((p) => p.isStarter).length < 4) {
+              const target = updated.find((p) => p.id === sub.id);
+              if (target) target.isStarter = true;
+            }
+          }
+        }
+
+        // Select Man of the Match (MOTM) from healthy players
+        const availableForMotm = updated.filter((p) => !p.injuryMatchdaysRemaining);
+        if (availableForMotm.length > 0) {
+          const motm = availableForMotm[Math.floor(Math.random() * availableForMotm.length)];
+          setManOfTheMatch(motm);
+          addLog(`Craque da Partida: ${motm.name} foi eleito o Jogador da Partida e ganhou +1 OVR para o próximo jogo!`, 'SCOUT');
+          updated = updated.map((p) =>
+            p.id === motm.id
+              ? { ...p, hasTemporaryOvrBonus: true, overall: Math.min(99, p.overall + 1) }
+              : p
+          );
+        }
+
+        // Push OVR history for each player
+        const currentMd = managerClub.matchday;
+        updated = updated.map((p) => {
+          const existingHistory = p.ovrHistory || [];
+          return {
+            ...p,
+            ovrHistory: [...existingHistory, { matchday: currentMd, ovr: p.overall }],
+          };
+        });
+
+        return updated;
       });
 
       // Update club standings
@@ -801,6 +924,7 @@ export default function App() {
               title: `${prev.name} ${stats.goalsP1} × ${stats.goalsP2} ${currentOpponent.name} (${netRevenue >= 0 ? '+' : ''}R$ ${netRevenue})`,
               type: 'MATCH',
             },
+            ...newLogs,
             ...prev.historyLogs,
           ],
         };
@@ -1343,6 +1467,12 @@ export default function App() {
             }}
             onOpenCreateTeam={() => setIsCreateTeamOpen(true)}
             onOpenTutorial={() => setIsTutorialOpen(true)}
+            onImportSave={(saveData) => {
+              setManagerClub(saveData.club);
+              setManagerSquad(saveData.squad);
+              setManagerOpponents(saveData.opponents);
+              setManagerMarket(saveData.market);
+            }}
           />
         </main>
       ) : (
@@ -1499,8 +1629,10 @@ export default function App() {
         gameMode={gameMode}
         stats={stats}
         managerReward={managerLastReward || undefined}
+        manOfTheMatch={manOfTheMatch}
         onPlayAgain={() => {
           setIsMatchEndOpen(false);
+          setManOfTheMatch(null);
           setMatchTime(180);
           setStats({
             goalsP1: 0,
